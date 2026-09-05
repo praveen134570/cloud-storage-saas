@@ -25,13 +25,22 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await api.post('/auth/login', { email, password });
+      // FastAPI strictly requires Form Data for logins, not JSON
+      const formData = new URLSearchParams();
+      formData.append('username', email); // FastAPI expects the field to be named 'username'
+      formData.append('password', password);
+
+      const response = await api.post('/auth/login', formData);
       localStorage.setItem('token', response.data.access_token);
+      
       const userResponse = await api.get('/auth/me');
       setUser(userResponse.data);
     } catch (error) {
-      if (error.response?.data?.detail && Array.isArray(error.response.data.detail)) {
-        throw new Error(error.response.data.detail[0].msg);
+      if (error.response?.data?.detail) {
+        // Handle both string errors ("Incorrect password") and array validation errors
+        const detail = error.response.data.detail;
+        const errMsg = Array.isArray(detail) ? detail[0].msg : detail;
+        throw new Error(errMsg);
       }
       throw error;
     }
