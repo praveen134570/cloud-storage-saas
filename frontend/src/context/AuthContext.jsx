@@ -8,15 +8,12 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuth = () => {
       const token = localStorage.getItem('token');
+      const savedUsername = localStorage.getItem('username');
       if (token) {
-        try {
-          const response = await api.get('/auth/me');
-          setUser(response.data);
-        } catch (error) {
-          localStorage.removeItem('token');
-        }
+        // Bypass the missing /auth/me route and trust the local token
+        setUser({ username: savedUsername || 'User' });
       }
       setLoading(false);
     };
@@ -25,19 +22,20 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      // FastAPI strictly requires Form Data for logins, not JSON
       const formData = new URLSearchParams();
-      formData.append('username', email); // FastAPI expects the field to be named 'username'
+      formData.append('username', email);
       formData.append('password', password);
 
       const response = await api.post('/auth/login', formData);
-      localStorage.setItem('token', response.data.access_token);
       
-      const userResponse = await api.get('/auth/me');
-      setUser(userResponse.data);
+      // Login successful! Save token and email locally
+      localStorage.setItem('token', response.data.access_token);
+      localStorage.setItem('username', email);
+      
+      // Set the user in state to instantly trigger the Dashboard redirect
+      setUser({ username: email });
     } catch (error) {
       if (error.response?.data?.detail) {
-        // Handle both string errors ("Incorrect password") and array validation errors
         const detail = error.response.data.detail;
         const errMsg = Array.isArray(detail) ? detail[0].msg : detail;
         throw new Error(errMsg);
@@ -65,6 +63,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('username');
     setUser(null);
   };
 
